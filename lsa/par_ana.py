@@ -123,16 +123,9 @@ def gen_singles(multiInput, multiOutput, workDir):
 
   return list(reversed(singles)), list(reversed(results)), list(reversed(ends))
 
-PBS_PREAMBLE = """#!/bin/bash
-#PBS -N %s 
-#PBS -S /bin/bash 
-#PBS -j oe
-#PBS -o %s
-#PBS -l walltime=299:00:00
-#PBS -l nodes=1:ppn=1,mem=%d000mb,vmem=%d000mb,pmem=%d000mb"""
 vmem=12
 
-def gen_pbs(singleFile, singleCmd, workDir, singleEnd, vmem):
+def gen_pbs(singleFile, singleCmd, workDir, singleEnd, vmem, PBS_PREAMBLE):
   singleResult=singleFile+".tmp"
   singlePBS=open(singleFile+".pbs", "w")
   print >>singlePBS, PBS_PREAMBLE % (os.path.basename(singleFile), os.path.basename(singleFile)+".log", vmem, vmem, vmem)
@@ -172,6 +165,7 @@ def main():
   parser.add_argument("workDir", metavar="workDir", help="set current working directory")
   parser.add_argument("-m", "--maxMem", dest="maxMem", default=12, type=int, help="max memory per process in MB")
   parser.add_argument("-d", "--dryRun", dest="dryRun", default="", help="generate pbs only")
+  parser.add_argument("-p", "--PBSLines", type=str, help = "file containing any extra lines for PBS script setup")
 
 #  """par_ana ARISA.txt ARISA.la 'la_compute %s ARISA.laq %s -s 114 -r 1 -p 1000'"""
 #  """par_ana ARISA.txt ARISA.lsa 'lsa_compute %s %s -s 114 -r -p theo'"""
@@ -182,6 +176,23 @@ def main():
   workDir=vars(arg_namespace)['workDir']
   dryRun=vars(arg_namespace)['dryRun']
   vmem=vars(arg_namespace)['maxMem']
+  PBSLines=arg_namespace.PBSLines
+
+
+  PBS_PREAMBLE = """#!/bin/bash
+#PBS -N %s 
+#PBS -S /bin/bash 
+#PBS -j oe
+#PBS -o %s
+#PBS -l walltime=299:00:00
+#PBS -l nodes=1:ppn=1,mem=%d000mb,vmem=%d000mb,pmem=%d000mb"""
+
+  if not PBSLines is None:
+    PBSLinesRead = open(PBSLines, "r")
+    newLines = PBSLinesRead.readlines()
+    PBS_PREAMBLE = PBS_PREAMBLE + '\n'
+    for x in newLines:
+      PBS_PREAMBLE = PBS_PREAMBLE + x
   
   print >>sys.stderr, "vmem=", str(vmem)+"000mb"
   #ws=os.path.join(os.environ.get("HOME"),'tmp','multi')
@@ -199,7 +210,7 @@ def main():
   while(len(singleFiles)!=0):
     singleFile=singleFiles.pop()
     endFile=endFiles.pop()
-    pbsFile=gen_pbs(singleFile, singleCmd, workDir, endFile, vmem)
+    pbsFile=gen_pbs(singleFile, singleCmd, workDir, endFile, vmem, PBS_PREAMBLE)
     inProgress.add(endFile)
     print >>sys.stderr, pbsFile
     if dryRun=='':
